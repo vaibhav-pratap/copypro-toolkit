@@ -1,7 +1,7 @@
 // Initializing context menus and handling settings
 function initializeContextMenus() {
   chrome.contextMenus.removeAll(() => {
-    chrome.storage.sync.get(['enableSlug', 'enableCleanText', 'enableImageName', 'enableAltText'], (settings) => {
+    chrome.storage.sync.get(['enableSlug', 'enableCleanText', 'enableImageName', 'enableAltText', 'enableLabel'], (settings) => {
       if (settings.enableSlug !== false) {
         chrome.contextMenus.create({
           id: "copy-slug",
@@ -30,6 +30,13 @@ function initializeContextMenus() {
           contexts: ["image", "all"]
         });
       }
+      if (settings.enableLabel !== false) {
+        chrome.contextMenus.create({
+          id: "copy-label",
+          title: "Copy Button/Link Label",
+          contexts: ["link", "all"]
+        });
+      }
     });
   });
 }
@@ -37,18 +44,24 @@ function initializeContextMenus() {
 // Setting up on extension install or update
 chrome.runtime.onInstalled.addListener(() => {
   initializeContextMenus();
-  chrome.storage.sync.set({ enableSlug: true, enableCleanText: true, enableImageName: true, enableAltText: true });
+  chrome.storage.sync.set({ enableSlug: true, enableCleanText: true, enableImageName: true, enableAltText: true, enableLabel: true });
 });
 
 // Updating context menus on storage changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'sync' && (changes.enableSlug || changes.enableCleanText || changes.enableImageName || changes.enableAltText)) {
+  if (namespace === 'sync' && (changes.enableSlug || changes.enableCleanText || changes.enableImageName || changes.enableAltText || changes.enableLabel)) {
     initializeContextMenus();
   }
 });
 
 // Handling context menu clicks
 chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (!tab || !tab.id || tab.id === -1) {
+    console.error("Invalid tab ID:", tab ? tab.id : 'undefined');
+    showToast("Cannot perform action: No valid tab found", "error");
+    return;
+  }
+
   if (info.menuItemId === "copy-slug") {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -70,11 +83,22 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       target: { tabId: tab.id },
       func: copyAltText
     });
+  } else if (info.menuItemId === "copy-label") {
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: copyLabel
+    });
   }
 });
 
 // Handling keyboard shortcuts
 chrome.commands.onCommand.addListener((command, tab) => {
+  if (!tab || !tab.id || tab.id === -1) {
+    console.error("Invalid tab ID for command:", command, tab ? tab.id : 'undefined');
+    showToast("Cannot perform action: No valid tab found", "error");
+    return;
+  }
+
   if (command === "copy-clean-text") {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -99,6 +123,11 @@ chrome.commands.onCommand.addListener((command, tab) => {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: copyAltText
+    });
+  } else if (command === "copy-label") {
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: copyLabel
     });
   }
 });
@@ -282,9 +311,8 @@ function copyImageName() {
       }
     }
 
-    // If no valid image name, check for background-image or first <img> in hierarchy
+    // If no valid image name, check for background-image
     if (!imageName) {
-      // Check for background-image
       const computedStyle = window.getComputedStyle(activeElement);
       const bgImage = computedStyle.backgroundImage;
       if (bgImage && bgImage !== 'none' && bgImage.includes('url(')) {
@@ -317,9 +345,10 @@ function copyImageName() {
       throw new Error("No valid image found");
     }
 
-    // Copy image name to clipboard
-    navigator.clipboard.writeText(imageName).then(() => {
-      showToast("Image Name Copied: " + imageName, "success");
+    // Copy only the filename (without path)
+    const filenameOnly = imageName.split('/').pop();
+    navigator.clipboard.writeText(filenameOnly).then(() => {
+      showToast("Image Name Copied: " + filenameOnly, "success");
     });
   } catch (e) {
     console.error("Error copying image name:", e);
@@ -385,5 +414,56 @@ function copyAltText() {
   } catch (e) {
     console.error("Error copying alt text:", e);
     showToast("Failed to copy alt text: " + e.message, "error");
+  }
+}
+
+// Copy button or link label
+function copyLabel() {
+  // Define findFirstLabelElement within content script context
+  function findFirstLabelElement(element) {
+    if (!element) return null;
+    if ((element.tagName === 'BUTTON' || element.tagName === 'A') && element.textContent.trim()) {
+      return element;
+    }
+    const elements = element.querySelectorAll('button, a');
+    for (const el of elements) {
+      if (el.textContent.trim()) return el;
+    }
+    return null;
+  }
+
+  try {
+    let labelText = '';
+    const activeElement = document.activeElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+
+    if (!activeElement) {
+      throw new Error("No active element found");
+    }
+
+    // Check if active element is a <button> or <a> tag with text content
+    if ((activeElement.tagName === 'BUTTON' || activeElement.tagName === 'A') && activeElement.textContent.trim()) {
+      labelText = activeElement.textContent.trim();
+    }
+
+    // If no label text, check for first <button> or <a> in hierarchy
+    if (!labelText) {
+      const element = findFirstLabelElement(activeElement);
+      if (element) {
+        labelText = element.textContent.trim();
+      }
+    }
+
+    // If no label text found or empty, show error
+    if (!labelText) {
+      throw new Error("No button or link label found");
+    }
+
+    // Copy label text to clipboard
+    navigator.clipboard.writeText(labelText).then(() => {
+      showToast("Label Copied: " + labelText, "success");
+    });
+  } catch (e) {
+    console.error("Error copying label:", e);
+    showToast("Failed to copy label: " + e.message, "error");
   }
 }
