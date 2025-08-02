@@ -304,114 +304,99 @@ function copySlugFromFocused() {
 
 // Copy image name from URL or background image
 function copyImageName(srcUrl, pageUrl) {
-  // Define findClosestImage within content script context
+  // Define findClosestImage with BFS traversal
   function findClosestImage(element) {
     if (!element) return null;
 
-    // Check if element itself is an <img> with src
-    if (element.tagName === 'IMG' && element.src) {
-      return element;
-    }
+    // Queue for BFS traversal
+    const queue = [{ node: element, depth: 0 }];
+    const visited = new Set();
+    const maxDepth = 10; // Increased for page builder DOMs
+    const imageFormats = /\.(png|jpg|jpeg|gif|webp|svg|bmp|tiff)$/i;
 
-    // Check if element is a <picture> and get its <img> or <source>
-    if (element.tagName === 'PICTURE') {
-      const img = element.querySelector('img');
-      if (img && img.src) {
-        return img;
-      }
-      const source = element.querySelector('source[srcset]');
-      if (source && source.srcset) {
-        // Extract first URL from srcset (handles multiple entries)
-        const srcset = source.srcset.split(',').map(s => s.trim().split(' ')[0]).find(url => url);
-        if (srcset) {
-          return { src: srcset };
-        }
-      }
-    }
+    while (queue.length > 0) {
+      const { node, depth } = queue.shift();
+      if (depth > maxDepth || visited.has(node)) continue;
+      visited.add(node);
 
-    // Check for background-image on the element
-    const computedStyle = window.getComputedStyle(element);
-    const bgImage = computedStyle.backgroundImage;
-    if (bgImage && bgImage !== 'none' && bgImage.includes('url(')) {
-      const urlMatch = bgImage.match(/url\(["']?(.+?)["']?\)/i);
-      if (urlMatch && urlMatch[1]) {
-        return { src: urlMatch[1] };
+      // Check for shadow DOM
+      if (node.shadowRoot) {
+        queue.push({ node: node.shadowRoot, depth: depth + 1 });
       }
-    }
 
-    // Search upward to parents for <img>, <picture>, or background-image
-    let current = element;
-    while (current && current !== document.documentElement) {
-      if (current.tagName === 'IMG' && current.src) {
-        return current;
-      }
-      if (current.tagName === 'PICTURE') {
-        const img = current.querySelector('img');
-        if (img && img.src) {
-          return img;
-        }
-        const source = current.querySelector('source[srcset]');
-        if (source && source.srcset) {
-          const srcset = source.srcset.split(',').map(s => s.trim().split(' ')[0]).find(url => url);
-          if (srcset) {
-            return { src: srcset };
+      // Check if node is an <img> with src, data-src, or data-lazy-src
+      if (node.tagName === 'IMG' && (node.src || node.dataset.src || node.dataset.lazySrc || node.dataset.image)) {
+        const src = node.src || node.dataset.src || node.dataset.lazySrc || node.dataset.image;
+        try {
+          const url = new URL(src, pageUrl);
+          if (imageFormats.test(url.pathname)) {
+            return { src };
           }
+        } catch (e) {
+          console.warn("Invalid image URL:", src, e);
         }
       }
-      const parentStyle = window.getComputedStyle(current);
-      const parentBgImage = parentStyle.backgroundImage;
-      if (parentBgImage && parentBgImage !== 'none' && parentBgImage.includes('url(')) {
-        const urlMatch = parentBgImage.match(/url\(["']?(.+?)["']?\)/i);
-        if (urlMatch && urlMatch[1]) {
-          return { src: urlMatch[1] };
-        }
-      }
-      current = current.parentElement;
-    }
 
-    // Search downward to children for <img> or <picture>
-    const pictures = element.getElementsByTagName('picture');
-    for (const picture of pictures) {
-      const img = picture.querySelector('img');
-      if (img && img.src) {
-        return img;
-      }
-      const source = picture.querySelector('source[srcset]');
-      if (source && source.srcset) {
-        const srcset = source.srcset.split(',').map(s => s.trim().split(' ')[0]).find(url => url);
-        if (srcset) {
-          return { src: srcset };
-        }
-      }
-    }
-
-    const images = element.getElementsByTagName('img');
-    for (const img of images) {
-      if (img.src) {
-        return img;
-      }
-    }
-
-    // Search siblings for <img> or <picture>
-    if (element.parentElement) {
-      const siblings = element.parentElement.children;
-      for (const sibling of siblings) {
-        if (sibling !== element) {
-          if (sibling.tagName === 'IMG' && sibling.src) {
-            return sibling;
-          }
-          if (sibling.tagName === 'PICTURE') {
-            const img = sibling.querySelector('img');
-            if (img && img.src) {
-              return img;
+      // Check if node is a <picture>
+      if (node.tagName === 'PICTURE') {
+        const img = node.querySelector('img');
+        if (img && (img.src || img.dataset.src || img.dataset.lazySrc || img.dataset.image)) {
+          const src = img.src || img.dataset.src || img.dataset.lazySrc || img.dataset.image;
+          try {
+            const url = new URL(src, pageUrl);
+            if (imageFormats.test(url.pathname)) {
+              return { src };
             }
-            const source = sibling.querySelector('source[srcset]');
-            if (source && source.srcset) {
-              const srcset = source.srcset.split(',').map(s => s.trim().split(' ')[0]).find(url => url);
-              if (srcset) {
+          } catch (e) {
+            console.warn("Invalid picture img URL:", src, e);
+          }
+        }
+        const source = node.querySelector('source[srcset], source[data-srcset], source[data-lazy-srcset]');
+        if (source && (source.srcset || source.dataset.srcset || source.dataset.lazySrcset)) {
+          const srcset = (source.srcset || source.dataset.srcset || source.dataset.lazySrcset).split(',').map(s => s.trim().split(' ')[0]).find(url => url);
+          if (srcset) {
+            try {
+              const url = new URL(srcset, pageUrl);
+              if (imageFormats.test(url.pathname)) {
                 return { src: srcset };
               }
+            } catch (e) {
+              console.warn("Invalid srcset URL:", srcset, e);
             }
+          }
+        }
+      }
+
+      // Check for background-image
+      const computedStyle = window.getComputedStyle(node);
+      const bgImage = computedStyle.backgroundImage;
+      if (bgImage && bgImage !== 'none' && bgImage.includes('url(')) {
+        const urlMatch = bgImage.match(/url\(["']?(.+?)["']?\)/i);
+        if (urlMatch && urlMatch[1]) {
+          try {
+            const url = new URL(urlMatch[1], pageUrl);
+            if (imageFormats.test(url.pathname)) {
+              return { src: urlMatch[1] };
+            }
+          } catch (e) {
+            console.warn("Invalid background-image URL:", urlMatch[1], e);
+          }
+        }
+      }
+
+      // Add parent, children, and siblings to queue
+      if (node.parentElement && node !== document.documentElement) {
+        queue.push({ node: node.parentElement, depth: depth + 1 });
+      }
+      const children = node.children || [];
+      for (const child of children) {
+        queue.push({ node: child, depth: depth + 1 });
+      }
+      if (node.parentElement) {
+        const siblings = node.parentElement.children;
+        for (const sibling of siblings) {
+          if (sibling !== node) {
+            queue.push({ node: sibling, depth: depth + 1 });
           }
         }
       }
@@ -440,6 +425,10 @@ function copyImageName(srcUrl, pageUrl) {
       if (!activeElement) {
         throw new Error("No active element found");
       }
+
+      // Check for page builder classes
+      const pageBuilder = activeElement.closest('.elementor, .wix, .sqs-block, .wp-block, .et_pb_module, .vc_custom, .vc_row');
+      console.log("Page builder detected:", pageBuilder ? pageBuilder.className : 'none');
 
       // Check for closest image in hierarchy
       const img = findClosestImage(activeElement);
@@ -471,81 +460,61 @@ function copyImageName(srcUrl, pageUrl) {
 
 // Copy alt text from image
 function copyAltText() {
-  // Define findClosestImage within content script context
+  // Define findClosestImage with DFS traversal
   function findClosestImage(element) {
     if (!element) return null;
 
-    // Check if element itself is an <img> with alt
-    if (element.tagName === 'IMG' && element.hasAttribute('alt')) {
-      const altText = element.getAttribute('alt').trim();
-      if (altText) return element;
-    }
+    const visited = new Set();
+    const maxDepth = 20;
 
-    // Check if element is a <picture> and get its <img>
-    if (element.tagName === 'PICTURE') {
-      const img = element.querySelector('img');
-      if (img && img.hasAttribute('alt')) {
-        const altText = img.getAttribute('alt').trim();
-        if (altText) return img;
-      }
-    }
+    function dfs(node, depth) {
+      if (depth > maxDepth || visited.has(node)) return null;
+      visited.add(node);
 
-    // Search upward to parents for <img> or <picture>
-    let current = element;
-    while (current && current !== document.documentElement) {
-      if (current.tagName === 'IMG' && current.hasAttribute('alt')) {
-        const altText = current.getAttribute('alt').trim();
-        if (altText) return current;
+      // Check for shadow DOM
+      if (node.shadowRoot) {
+        const shadowResult = dfs(node.shadowRoot, depth + 1);
+        if (shadowResult) return shadowResult;
       }
-      if (current.tagName === 'PICTURE') {
-        const img = current.querySelector('img');
-        if (img && img.hasAttribute('alt')) {
-          const altText = img.getAttribute('alt').trim();
-          if (altText) return img;
+
+      // Check if node is an <img> with alt, data-alt, or data-image-alt
+      if (node.tagName === 'IMG' && (node.hasAttribute('alt') || node.dataset.alt || node.dataset.imageAlt)) {
+        const altText = (node.getAttribute('alt') || node.dataset.alt || node.dataset.imageAlt || '').trim();
+        if (altText) {
+          console.log("Found alt text on:", node.tagName, "alt:", altText);
+          return { element: node, alt: altText };
         }
       }
-      current = current.parentElement;
-    }
 
-    // Search downward to children for <img> or <picture>
-    const pictures = element.getElementsByTagName('picture');
-    for (const picture of pictures) {
-      const img = picture.querySelector('img');
-      if (img && img.hasAttribute('alt')) {
-        const altText = img.getAttribute('alt').trim();
-        if (altText) return img;
-      }
-    }
-
-    const images = element.getElementsByTagName('img');
-    for (const img of images) {
-      if (img.hasAttribute('alt')) {
-        const altText = img.getAttribute('alt').trim();
-        if (altText) return img;
-      }
-    }
-
-    // Search siblings for <img> or <picture>
-    if (element.parentElement) {
-      const siblings = element.parentElement.children;
-      for (const sibling of siblings) {
-        if (sibling !== element) {
-          if (sibling.tagName === 'IMG' && sibling.hasAttribute('alt')) {
-            const altText = sibling.getAttribute('alt').trim();
-            if (altText) return sibling;
-          }
-          if (sibling.tagName === 'PICTURE') {
-            const img = sibling.querySelector('img');
-            if (img && img.hasAttribute('alt')) {
-              const altText = img.getAttribute('alt').trim();
-              if (altText) return img;
-            }
+      // Check if node is a <picture>
+      if (node.tagName === 'PICTURE') {
+        const img = node.querySelector('img');
+        if (img && (img.hasAttribute('alt') || img.dataset.alt || img.dataset.imageAlt)) {
+          const altText = (img.getAttribute('alt') || img.dataset.alt || img.dataset.imageAlt || '').trim();
+          if (altText) {
+            console.log("Found alt text in picture on:", img.tagName, "alt:", altText);
+            return { element: img, alt: altText };
           }
         }
       }
+
+      // Recurse on children
+      const children = node.children || [];
+      for (const child of children) {
+        const result = dfs(child, depth + 1);
+        if (result) return result;
+      }
+
+      // Recurse on parent if not root
+      if (node.parentElement && node !== document.documentElement) {
+        const result = dfs(node.parentElement, depth + 1);
+        if (result) return result;
+      }
+
+      return null;
     }
 
-    return null;
+    return dfs(element, 0);
   }
 
   try {
@@ -556,13 +525,24 @@ function copyAltText() {
       throw new Error("No active element found");
     }
 
-    // Check for closest image with alt text in hierarchy
-    const img = findClosestImage(activeElement);
-    if (img && img.hasAttribute('alt')) {
-      const potentialAlt = img.getAttribute('alt');
-      if (potentialAlt && potentialAlt.trim()) {
-        altText = potentialAlt.trim();
+    // Check for page builder classes
+    const pageBuilder = activeElement.closest('.elementor, .wix, .sqs-block, .wp-block, .et_pb_module, .vc_custom, .vc_row');
+    console.log("Page builder detected for alt text:", pageBuilder ? pageBuilder.className : 'none');
+
+    // If activeElement is an image or in image-wrapper, check parent container
+    let startElement = activeElement;
+    if (activeElement.tagName === 'IMG' || activeElement.closest('.image-wrapper, .elementor-image, .sqs-block-image')) {
+      const container = activeElement.closest('.container, .elementor-container, .sqs-block, .wp-block, .et_pb_row, .vc_row');
+      if (container) {
+        console.log("Detected image layer, searching container:", container.className);
+        startElement = container;
       }
+    }
+
+    // Check for closest image with alt text in hierarchy
+    const img = findClosestImage(startElement);
+    if (img && img.alt) {
+      altText = img.alt;
     }
 
     // If no alt text found or empty, show error
@@ -582,43 +562,94 @@ function copyAltText() {
 
 // Copy button or link label
 function copyLabel() {
-  // Define findClosestLabelElement within content script context
+  // Define findClosestLabelElement with DFS traversal
   function findClosestLabelElement(element) {
     if (!element) return null;
 
-    // Check if element itself is a <button> or <a> with text content
-    if ((element.tagName === 'BUTTON' || element.tagName === 'A') && element.textContent.trim()) {
-      return element;
-    }
+    const visited = new Set();
+    const maxDepth = 20;
 
-    // Search upward to parents for <button> or <a>
-    let current = element;
-    while (current && current !== document.documentElement) {
-      if ((current.tagName === 'BUTTON' || current.tagName === 'A') && current.textContent.trim()) {
-        return current;
+    function dfs(node, depth) {
+      if (depth > maxDepth || visited.has(node)) return null;
+      visited.add(node);
+
+      // Check for shadow DOM
+      if (node.shadowRoot) {
+        const shadowResult = dfs(node.shadowRoot, depth + 1);
+        if (shadowResult) return shadowResult;
       }
-      current = current.parentElement;
-    }
 
-    // Search downward to children for <button> or <a>
-    const elements = element.querySelectorAll('button, a');
-    for (const el of elements) {
-      if (el.textContent.trim()) {
-        return el;
+      // Check if node is a <button> or <a> with text content
+      if ((node.tagName === 'BUTTON' || node.tagName === 'A') && node.textContent.trim()) {
+        console.log("Found button/a:", node.tagName, "text:", node.textContent.trim());
+        return { element: node, text: node.textContent.trim() };
       }
-    }
 
-    // Search siblings for <button> or <a>
-    if (element.parentElement) {
-      const siblings = element.parentElement.children;
-      for (const sibling of siblings) {
-        if (sibling !== element && (sibling.tagName === 'BUTTON' || sibling.tagName === 'A') && sibling.textContent.trim()) {
-          return sibling;
+      // Check for interactive elements with descriptive attributes
+      const isInteractive = node.hasAttribute('onclick') || 
+                           node.getAttribute('role') === 'button' || 
+                           node.hasAttribute('tabindex') || 
+                           node.className.includes('button') || 
+                           node.className.includes('btn') || 
+                           node.className.includes('elementor-button') || 
+                           node.className.includes('sqs-block-button') || 
+                           node.className.includes('wp-block-button');
+      if (isInteractive) {
+        let text = '';
+        const title = node.getAttribute('title');
+        if (title && title.trim()) {
+          text = title.trim();
+          console.log("Found title on:", node.tagName, "title:", title);
+        }
+        const ariaDescribedBy = node.getAttribute('aria-describedby');
+        if (ariaDescribedBy && !text) {
+          const describedElement = document.getElementById(ariaDescribedBy) || document.querySelector(`[id="${ariaDescribedBy}"]`);
+          if (describedElement && describedElement.textContent.trim()) {
+            text = describedElement.textContent.trim();
+            console.log("Found aria-describedby on:", node.tagName, "text:", text);
+          }
+        }
+        const ariaLabel = node.getAttribute('aria-label');
+        if (ariaLabel && !text) {
+          text = ariaLabel.trim();
+          console.log("Found aria-label on:", node.tagName, "text:", ariaLabel);
+        }
+        const dataTitle = node.dataset.title;
+        if (dataTitle && !text) {
+          text = dataTitle.trim();
+          console.log("Found data-title on:", node.tagName, "text:", dataTitle);
+        }
+        const dataLabel = node.dataset.label;
+        if (dataLabel && !text) {
+          text = dataLabel.trim();
+          console.log("Found data-label on:", node.tagName, "text:", dataLabel);
+        }
+        if (!text && node.textContent.trim()) {
+          text = node.textContent.trim();
+          console.log("Found textContent on:", node.tagName, "text:", text);
+        }
+        if (text) {
+          return { element: node, text };
         }
       }
+
+      // Recurse on children
+      const children = node.children || [];
+      for (const child of children) {
+        const result = dfs(child, depth + 1);
+        if (result) return result;
+      }
+
+      // Recurse on parent if not root
+      if (node.parentElement && node !== document.documentElement) {
+        const result = dfs(node.parentElement, depth + 1);
+        if (result) return result;
+      }
+
+      return null;
     }
 
-    return null;
+    return dfs(element, 0);
   }
 
   try {
@@ -629,10 +660,24 @@ function copyLabel() {
       throw new Error("No active element found");
     }
 
-    // Check for closest <button> or <a> in hierarchy
-    const element = findClosestLabelElement(activeElement);
-    if (element) {
-      labelText = element.textContent.trim();
+    // Check for page builder classes
+    const pageBuilder = activeElement.closest('.elementor, .wix, .sqs-block, .wp-block, .et_pb_module, .vc_custom, .vc_row');
+    console.log("Page builder detected for label:", pageBuilder ? pageBuilder.className : 'none');
+
+    // If activeElement is an image or in image-wrapper, check parent container
+    let startElement = activeElement;
+    if (activeElement.tagName === 'IMG' || activeElement.closest('.image-wrapper, .elementor-image, .sqs-block-image')) {
+      const container = activeElement.closest('.container, .elementor-container, .sqs-block, .wp-block, .et_pb_row, .vc_row');
+      if (container) {
+        console.log("Detected image layer, searching container:", container.className);
+        startElement = container;
+      }
+    }
+
+    // Check for closest label element in hierarchy
+    const element = findClosestLabelElement(startElement);
+    if (element && element.text) {
+      labelText = element.text;
     }
 
     // If no label text found or empty, show error
