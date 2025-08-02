@@ -1,7 +1,10 @@
+console.log("Background script loaded");
+
 // Initializing context menus and handling settings
 function initializeContextMenus() {
+  console.log("Initializing context menus");
   chrome.contextMenus.removeAll(() => {
-    chrome.storage.sync.get(['enableSlug', 'enableCleanText', 'enableImageName', 'enableAltText', 'enableLabel'], (settings) => {
+    chrome.storage.sync.get(['enableSlug', 'enableCleanText', 'enableImageName', 'enableAltText', 'enableLabel', 'enablePage'], (settings) => {
       if (settings.enableSlug !== false) {
         chrome.contextMenus.create({
           id: "copy-slug",
@@ -37,19 +40,43 @@ function initializeContextMenus() {
           contexts: ["link", "all"]
         });
       }
+      if (settings.enablePage !== false) {
+        chrome.contextMenus.create({
+          id: "copy-page",
+          title: "Copy Page URL",
+          contexts: ["all"]
+        });
+      }
     });
   });
 }
 
 // Setting up on extension install or update
 chrome.runtime.onInstalled.addListener(() => {
+  console.log("Extension installed or updated");
   initializeContextMenus();
-  chrome.storage.sync.set({ enableSlug: true, enableCleanText: true, enableImageName: true, enableAltText: true, enableLabel: true });
+  chrome.storage.sync.set({
+    enableSlug: true,
+    enableCleanText: true,
+    enableImageName: true,
+    enableAltText: true,
+    enableLabel: true,
+    enablePage: true
+  });
 });
 
 // Updating context menus on storage changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'sync' && (changes.enableSlug || changes.enableCleanText || changes.enableImageName || changes.enableAltText || changes.enableLabel)) {
+  if (namespace === 'sync' && (changes.enableSlug || changes.enableCleanText || changes.enableImageName || changes.enableAltText || changes.enableLabel || changes.enablePage)) {
+    console.log("Storage changed, updating context menus");
+    initializeContextMenus();
+  }
+});
+
+// Handle messages from popup.js
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log("Message received:", request);
+  if (request.action === 'updateContextMenus') {
     initializeContextMenus();
   }
 });
@@ -76,7 +103,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   } else if (info.menuItemId === "copy-image-name") {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: copyImageName
+      func: copyImageName,
+      args: [info.srcUrl || null, info.pageUrl || window.location.href]
     });
   } else if (info.menuItemId === "copy-alt-text") {
     chrome.scripting.executeScript({
@@ -87,6 +115,11 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: copyLabel
+    });
+  } else if (info.menuItemId === "copy-page") {
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: copyPage
     });
   }
 });
@@ -104,11 +137,6 @@ chrome.commands.onCommand.addListener((command, tab) => {
       target: { tabId: tab.id },
       func: copyCleanText
     });
-  } else if (command === "copy-page") {
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: copyPage
-    });
   } else if (command === "copy-slug") {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -117,12 +145,8 @@ chrome.commands.onCommand.addListener((command, tab) => {
   } else if (command === "copy-image-name") {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: copyImageName
-    });
-  } else if (command === "copy-alt-text") {
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: copyAltText
+      func: copyImageName,
+      args: [null, window.location.href]
     });
   } else if (command === "copy-label") {
     chrome.scripting.executeScript({
@@ -279,31 +303,130 @@ function copySlugFromFocused() {
 }
 
 // Copy image name from URL or background image
-function copyImageName() {
-  // Define findFirstImage within content script context
-  function findFirstImage(element) {
+function copyImageName(srcUrl, pageUrl) {
+  // Define findClosestImage within content script context
+  function findClosestImage(element) {
     if (!element) return null;
-    if (element.tagName === 'IMG' && element.src) return element;
+
+    // Check if element itself is an <img> with src
+    if (element.tagName === 'IMG' && element.src) {
+      return element;
+    }
+
+    // Check if element is a <picture> and get its <img> or <source>
+    if (element.tagName === 'PICTURE') {
+      const img = element.querySelector('img');
+      if (img && img.src) {
+        return img;
+      }
+      const source = element.querySelector('source[srcset]');
+      if (source && source.srcset) {
+        // Extract first URL from srcset (handles multiple entries)
+        const srcset = source.srcset.split(',').map(s => s.trim().split(' ')[0]).find(url => url);
+        if (srcset) {
+          return { src: srcset };
+        }
+      }
+    }
+
+    // Check for background-image on the element
+    const computedStyle = window.getComputedStyle(element);
+    const bgImage = computedStyle.backgroundImage;
+    if (bgImage && bgImage !== 'none' && bgImage.includes('url(')) {
+      const urlMatch = bgImage.match(/url\(["']?(.+?)["']?\)/i);
+      if (urlMatch && urlMatch[1]) {
+        return { src: urlMatch[1] };
+      }
+    }
+
+    // Search upward to parents for <img>, <picture>, or background-image
+    let current = element;
+    while (current && current !== document.documentElement) {
+      if (current.tagName === 'IMG' && current.src) {
+        return current;
+      }
+      if (current.tagName === 'PICTURE') {
+        const img = current.querySelector('img');
+        if (img && img.src) {
+          return img;
+        }
+        const source = current.querySelector('source[srcset]');
+        if (source && source.srcset) {
+          const srcset = source.srcset.split(',').map(s => s.trim().split(' ')[0]).find(url => url);
+          if (srcset) {
+            return { src: srcset };
+          }
+        }
+      }
+      const parentStyle = window.getComputedStyle(current);
+      const parentBgImage = parentStyle.backgroundImage;
+      if (parentBgImage && parentBgImage !== 'none' && parentBgImage.includes('url(')) {
+        const urlMatch = parentBgImage.match(/url\(["']?(.+?)["']?\)/i);
+        if (urlMatch && urlMatch[1]) {
+          return { src: urlMatch[1] };
+        }
+      }
+      current = current.parentElement;
+    }
+
+    // Search downward to children for <img> or <picture>
+    const pictures = element.getElementsByTagName('picture');
+    for (const picture of pictures) {
+      const img = picture.querySelector('img');
+      if (img && img.src) {
+        return img;
+      }
+      const source = picture.querySelector('source[srcset]');
+      if (source && source.srcset) {
+        const srcset = source.srcset.split(',').map(s => s.trim().split(' ')[0]).find(url => url);
+        if (srcset) {
+          return { src: srcset };
+        }
+      }
+    }
+
     const images = element.getElementsByTagName('img');
     for (const img of images) {
-      if (img.src) return img;
+      if (img.src) {
+        return img;
+      }
     }
+
+    // Search siblings for <img> or <picture>
+    if (element.parentElement) {
+      const siblings = element.parentElement.children;
+      for (const sibling of siblings) {
+        if (sibling !== element) {
+          if (sibling.tagName === 'IMG' && sibling.src) {
+            return sibling;
+          }
+          if (sibling.tagName === 'PICTURE') {
+            const img = sibling.querySelector('img');
+            if (img && img.src) {
+              return img;
+            }
+            const source = sibling.querySelector('source[srcset]');
+            if (source && source.srcset) {
+              const srcset = source.srcset.split(',').map(s => s.trim().split(' ')[0]).find(url => url);
+              if (srcset) {
+                return { src: srcset };
+              }
+            }
+          }
+        }
+      }
+    }
+
     return null;
   }
 
   try {
     let imageName = '';
     const imageFormats = /\.(png|jpg|jpeg|gif|webp|svg|bmp|tiff)$/i;
-    const activeElement = document.activeElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
-    const pageUrl = window.location.href;
 
-    if (!activeElement) {
-      throw new Error("No active element found");
-    }
-
-    // Check if active element is an <img> tag
-    if (activeElement.tagName === 'IMG' && activeElement.src) {
-      const url = new URL(activeElement.src);
+    // If srcUrl is provided (context menu on <img>), use it directly
+    if (srcUrl) {
+      const url = new URL(srcUrl, pageUrl);
       const pathname = url.pathname;
       const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
       if (imageFormats.test(filename)) {
@@ -311,38 +434,28 @@ function copyImageName() {
       }
     }
 
-    // If no valid image name, check for background-image
+    // If no valid imageName from srcUrl, check active element
     if (!imageName) {
-      const computedStyle = window.getComputedStyle(activeElement);
-      const bgImage = computedStyle.backgroundImage;
-      if (bgImage && bgImage !== 'none' && bgImage.includes('url(')) {
-        const urlMatch = bgImage.match(/url\(["']?(.+?)["']?\)/i);
-        if (urlMatch && urlMatch[1]) {
-          const url = new URL(urlMatch[1], pageUrl); // Resolve relative URLs
-          const pathname = url.pathname;
-          const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
-          if (imageFormats.test(filename)) {
-            imageName = decodeURIComponent(filename);
-          }
-        }
+      const activeElement = document.activeElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+      if (!activeElement) {
+        throw new Error("No active element found");
       }
-      // Check for first <img> in hierarchy
-      if (!imageName) {
-        const img = findFirstImage(activeElement);
-        if (img && img.src) {
-          const url = new URL(img.src);
-          const pathname = url.pathname;
-          const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
-          if (imageFormats.test(filename)) {
-            imageName = decodeURIComponent(filename);
-          }
+
+      // Check for closest image in hierarchy
+      const img = findClosestImage(activeElement);
+      if (img && img.src) {
+        const url = new URL(img.src, pageUrl);
+        const pathname = url.pathname;
+        const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
+        if (imageFormats.test(filename)) {
+          imageName = decodeURIComponent(filename);
         }
       }
     }
 
     // If no image name found, show error
     if (!imageName) {
-      throw new Error("No valid image found");
+      throw new Error("No valid image found in hierarchy");
     }
 
     // Copy only the filename (without path)
@@ -358,13 +471,52 @@ function copyImageName() {
 
 // Copy alt text from image
 function copyAltText() {
-  // Define findFirstImage within content script context
-  function findFirstImage(element) {
+  // Define findClosestImage within content script context
+  function findClosestImage(element) {
     if (!element) return null;
+
+    // Check if element itself is an <img> with alt
     if (element.tagName === 'IMG' && element.hasAttribute('alt')) {
       const altText = element.getAttribute('alt').trim();
       if (altText) return element;
     }
+
+    // Check if element is a <picture> and get its <img>
+    if (element.tagName === 'PICTURE') {
+      const img = element.querySelector('img');
+      if (img && img.hasAttribute('alt')) {
+        const altText = img.getAttribute('alt').trim();
+        if (altText) return img;
+      }
+    }
+
+    // Search upward to parents for <img> or <picture>
+    let current = element;
+    while (current && current !== document.documentElement) {
+      if (current.tagName === 'IMG' && current.hasAttribute('alt')) {
+        const altText = current.getAttribute('alt').trim();
+        if (altText) return current;
+      }
+      if (current.tagName === 'PICTURE') {
+        const img = current.querySelector('img');
+        if (img && img.hasAttribute('alt')) {
+          const altText = img.getAttribute('alt').trim();
+          if (altText) return img;
+        }
+      }
+      current = current.parentElement;
+    }
+
+    // Search downward to children for <img> or <picture>
+    const pictures = element.getElementsByTagName('picture');
+    for (const picture of pictures) {
+      const img = picture.querySelector('img');
+      if (img && img.hasAttribute('alt')) {
+        const altText = img.getAttribute('alt').trim();
+        if (altText) return img;
+      }
+    }
+
     const images = element.getElementsByTagName('img');
     for (const img of images) {
       if (img.hasAttribute('alt')) {
@@ -372,6 +524,27 @@ function copyAltText() {
         if (altText) return img;
       }
     }
+
+    // Search siblings for <img> or <picture>
+    if (element.parentElement) {
+      const siblings = element.parentElement.children;
+      for (const sibling of siblings) {
+        if (sibling !== element) {
+          if (sibling.tagName === 'IMG' && sibling.hasAttribute('alt')) {
+            const altText = sibling.getAttribute('alt').trim();
+            if (altText) return sibling;
+          }
+          if (sibling.tagName === 'PICTURE') {
+            const img = sibling.querySelector('img');
+            if (img && img.hasAttribute('alt')) {
+              const altText = img.getAttribute('alt').trim();
+              if (altText) return img;
+            }
+          }
+        }
+      }
+    }
+
     return null;
   }
 
@@ -383,22 +556,12 @@ function copyAltText() {
       throw new Error("No active element found");
     }
 
-    // Check if active element is an <img> tag with alt attribute
-    if (activeElement.tagName === 'IMG') {
-      const potentialAlt = activeElement.getAttribute('alt');
+    // Check for closest image with alt text in hierarchy
+    const img = findClosestImage(activeElement);
+    if (img && img.hasAttribute('alt')) {
+      const potentialAlt = img.getAttribute('alt');
       if (potentialAlt && potentialAlt.trim()) {
         altText = potentialAlt.trim();
-      }
-    }
-
-    // If no alt text, check for first <img> in hierarchy with non-empty alt
-    if (!altText) {
-      const img = findFirstImage(activeElement);
-      if (img) {
-        const potentialAlt = img.getAttribute('alt');
-        if (potentialAlt && potentialAlt.trim()) {
-          altText = potentialAlt.trim();
-        }
       }
     }
 
@@ -419,16 +582,42 @@ function copyAltText() {
 
 // Copy button or link label
 function copyLabel() {
-  // Define findFirstLabelElement within content script context
-  function findFirstLabelElement(element) {
+  // Define findClosestLabelElement within content script context
+  function findClosestLabelElement(element) {
     if (!element) return null;
+
+    // Check if element itself is a <button> or <a> with text content
     if ((element.tagName === 'BUTTON' || element.tagName === 'A') && element.textContent.trim()) {
       return element;
     }
+
+    // Search upward to parents for <button> or <a>
+    let current = element;
+    while (current && current !== document.documentElement) {
+      if ((current.tagName === 'BUTTON' || current.tagName === 'A') && current.textContent.trim()) {
+        return current;
+      }
+      current = current.parentElement;
+    }
+
+    // Search downward to children for <button> or <a>
     const elements = element.querySelectorAll('button, a');
     for (const el of elements) {
-      if (el.textContent.trim()) return el;
+      if (el.textContent.trim()) {
+        return el;
+      }
     }
+
+    // Search siblings for <button> or <a>
+    if (element.parentElement) {
+      const siblings = element.parentElement.children;
+      for (const sibling of siblings) {
+        if (sibling !== element && (sibling.tagName === 'BUTTON' || sibling.tagName === 'A') && sibling.textContent.trim()) {
+          return sibling;
+        }
+      }
+    }
+
     return null;
   }
 
@@ -440,22 +629,15 @@ function copyLabel() {
       throw new Error("No active element found");
     }
 
-    // Check if active element is a <button> or <a> tag with text content
-    if ((activeElement.tagName === 'BUTTON' || activeElement.tagName === 'A') && activeElement.textContent.trim()) {
-      labelText = activeElement.textContent.trim();
-    }
-
-    // If no label text, check for first <button> or <a> in hierarchy
-    if (!labelText) {
-      const element = findFirstLabelElement(activeElement);
-      if (element) {
-        labelText = element.textContent.trim();
-      }
+    // Check for closest <button> or <a> in hierarchy
+    const element = findClosestLabelElement(activeElement);
+    if (element) {
+      labelText = element.textContent.trim();
     }
 
     // If no label text found or empty, show error
     if (!labelText) {
-      throw new Error("No button or link label found");
+      throw new Error("No button or link label found in hierarchy");
     }
 
     // Copy label text to clipboard
