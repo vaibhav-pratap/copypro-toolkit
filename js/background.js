@@ -1,10 +1,10 @@
-console.log("Background script loaded");
-
 // Initializing context menus and handling settings
 function initializeContextMenus() {
-  console.log("Initializing context menus");
+  // Remove all existing context menus to avoid duplicates
   chrome.contextMenus.removeAll(() => {
+    // Retrieve stored settings for enabling/disabling menu items
     chrome.storage.sync.get(['enableSlug', 'enableCleanText', 'enableImageName', 'enableAltText', 'enableLabel', 'enablePage'], (settings) => {
+      // Check and create context menu for copying slug from links
       if (settings.enableSlug !== false) {
         chrome.contextMenus.create({
           id: "copy-slug",
@@ -12,6 +12,7 @@ function initializeContextMenus() {
           contexts: ["link"]
         });
       }
+      // Check and create context menu for copying clean text from selection
       if (settings.enableCleanText !== false) {
         chrome.contextMenus.create({
           id: "copy-clean-text",
@@ -19,6 +20,7 @@ function initializeContextMenus() {
           contexts: ["selection"]
         });
       }
+      // Check and create context menu for copying image name
       if (settings.enableImageName !== false) {
         chrome.contextMenus.create({
           id: "copy-image-name",
@@ -26,6 +28,7 @@ function initializeContextMenus() {
           contexts: ["image", "all"]
         });
       }
+      // Check and create context menu for copying alt text
       if (settings.enableAltText !== false) {
         chrome.contextMenus.create({
           id: "copy-alt-text",
@@ -33,6 +36,7 @@ function initializeContextMenus() {
           contexts: ["image", "all"]
         });
       }
+      // Check and create context menu for copying label
       if (settings.enableLabel !== false) {
         chrome.contextMenus.create({
           id: "copy-label",
@@ -40,6 +44,7 @@ function initializeContextMenus() {
           contexts: ["link", "all"]
         });
       }
+      // Check and create context menu for copying page URL
       if (settings.enablePage !== false) {
         chrome.contextMenus.create({
           id: "copy-page",
@@ -53,8 +58,11 @@ function initializeContextMenus() {
 
 // Setting up on extension install or update
 chrome.runtime.onInstalled.addListener(() => {
+  // Log installation or update event
   console.log("Extension installed or updated");
+  // Initialize context menus on install
   initializeContextMenus();
+  // Set default values for all settings
   chrome.storage.sync.set({
     enableSlug: true,
     enableCleanText: true,
@@ -67,28 +75,23 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // Updating context menus on storage changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
+  // Check if changes are in sync storage and affect menu items
   if (namespace === 'sync' && (changes.enableSlug || changes.enableCleanText || changes.enableImageName || changes.enableAltText || changes.enableLabel || changes.enablePage)) {
     console.log("Storage changed, updating context menus");
     initializeContextMenus();
   }
 });
 
-// Handle messages from popup.js
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log("Message received:", request);
-  if (request.action === 'updateContextMenus') {
-    initializeContextMenus();
-  }
-});
-
 // Handling context menu clicks
 chrome.contextMenus.onClicked.addListener((info, tab) => {
+  // Validate tab existence and ID
   if (!tab || !tab.id || tab.id === -1) {
     console.error("Invalid tab ID:", tab ? tab.id : 'undefined');
     showToast("Cannot perform action: No valid tab found", "error");
     return;
   }
 
+  // Handle different context menu actions
   if (info.menuItemId === "copy-slug") {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -103,8 +106,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   } else if (info.menuItemId === "copy-image-name") {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: copyImageName,
-      args: [info.srcUrl || null, info.pageUrl || window.location.href]
+      func: copyImageName
     });
   } else if (info.menuItemId === "copy-alt-text") {
     chrome.scripting.executeScript({
@@ -126,12 +128,14 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 // Handling keyboard shortcuts
 chrome.commands.onCommand.addListener((command, tab) => {
+  // Validate tab existence and ID
   if (!tab || !tab.id || tab.id === -1) {
     console.error("Invalid tab ID for command:", command, tab ? tab.id : 'undefined');
     showToast("Cannot perform action: No valid tab found", "error");
     return;
   }
 
+  // Handle different keyboard commands
   if (command === "copy-clean-text") {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -145,33 +149,47 @@ chrome.commands.onCommand.addListener((command, tab) => {
   } else if (command === "copy-image-name") {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: copyImageName,
-      args: [null, window.location.href]
+      func: copyImageName
     });
-  } else if (command === "copy-label") {
+  } else if (command === "copy-alt-text") {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: copyLabel
+      func: copyAltText
+    });
+  } else if (command === "copy-page") {
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: copyPage
     });
   }
 });
 
 // Copy slug from link URL
 function copySlug(linkUrl) {
+  // Validate input URL
   try {
+    if (!linkUrl || !linkUrl.trim()) {
+      showToast("No valid link URL provided", "error");
+      return;
+    }
     const url = new URL(linkUrl);
     const slug = url.pathname;
+    // Attempt to copy to clipboard
     navigator.clipboard.writeText(slug).then(() => {
       showToast("Slug Copied", "success");
+    }).catch((e) => {
+      console.error("Error copying slug:", e);
+      showToast("Failed to copy slug", "error");
     });
   } catch (e) {
-    console.error("Error copying slug:", e);
-    showToast("Failed to copy slug", "error");
+    console.error("Invalid URL for slug:", linkUrl, e);
+    showToast("Failed to copy slug: Invalid URL", "error");
   }
 }
 
 // Copy clean highlighted text
 function copyCleanText() {
+  // Get selected text
   const selection = window.getSelection();
   if (!selection.rangeCount) {
     showToast("No text selected", "error");
@@ -206,16 +224,22 @@ function copyCleanText() {
     }
   }
 
-  // Explicitly remove div tags
+  // Explicitly remove div tags and replace <br> with spaces
   const divs = tempDiv.getElementsByTagName("DIV");
   while (divs.length > 0) {
     const div = divs[0];
     div.replaceWith(...div.childNodes);
   }
+  const brs = tempDiv.getElementsByTagName("BR");
+  while (brs.length > 0) {
+    const br = brs[0];
+    br.replaceWith(" ");
+  }
 
-  // Normalize whitespace and prepare HTML
+  // Normalize whitespace and remove all newlines
   let cleanHtml = tempDiv.innerHTML
-    .replace(/(\r\n|\n|\r)/gm, '') // Remove line breaks
+    .replace(/(\r\n|\n|\r)/gm, ' ') // Replace newlines with space
+    .replace(/<br\s*\/?>/gi, ' ') // Handle any remaining <br> tags
     .replace(/\s+/g, ' ') // Collapse multiple spaces
     .trim(); // Trim leading/trailing whitespace
 
@@ -228,7 +252,10 @@ function copyCleanText() {
   // Generate plain text version
   const plainDiv = document.createElement("div");
   plainDiv.innerHTML = cleanHtml;
-  const plainText = plainDiv.textContent.trim();
+  const plainText = plainDiv.textContent
+    .replace(/(\r\n|\n|\r)/gm, ' ') // Replace newlines with space
+    .replace(/\s+/g, ' ') // Collapse multiple spaces
+    .trim(); // Trim leading/trailing whitespace
 
   // Try Clipboard API with ClipboardItem
   try {
@@ -286,154 +313,93 @@ function copyPage() {
 // Copy slug from focused link or current page
 function copySlugFromFocused() {
   const activeElement = document.activeElement;
-  let linkUrl = window.location.href;
-  if (activeElement.tagName === 'A' && activeElement.href) {
+  let linkUrl = null;
+  if (activeElement && activeElement.tagName === 'A' && activeElement.href && activeElement.href.trim()) {
     linkUrl = activeElement.href;
+  } else {
+    linkUrl = window.location.href;
   }
   try {
+    if (!linkUrl) {
+      showToast("No link or page URL available", "error");
+      return;
+    }
     const url = new URL(linkUrl);
     const slug = url.pathname;
     navigator.clipboard.writeText(slug).then(() => {
       showToast("Slug Copied", "success");
+    }).catch((e) => {
+      console.error("Error copying slug:", e);
+      showToast("Failed to copy slug", "error");
     });
   } catch (e) {
-    console.error("Error copying slug:", e);
-    showToast("Failed to copy slug", "error");
+    console.error("Invalid URL for slug:", linkUrl, e);
+    showToast("Failed to copy slug: Invalid URL", "error");
   }
 }
 
 // Copy image name from URL or background image
-function copyImageName(srcUrl, pageUrl) {
-  // Define findClosestImage with BFS traversal
-  function findClosestImage(element) {
+function copyImageName() {
+  // Helper function to find the first image in the DOM hierarchy
+  function findFirstImage(element) {
     if (!element) return null;
-
-    // Queue for BFS traversal
-    const queue = [{ node: element, depth: 0 }];
-    const visited = new Set();
-    const maxDepth = 10; // Increased for page builder DOMs
-    const imageFormats = /\.(png|jpg|jpeg|gif|webp|svg|bmp|tiff)$/i;
-
-    while (queue.length > 0) {
-      const { node, depth } = queue.shift();
-      if (depth > maxDepth || visited.has(node)) continue;
-      visited.add(node);
-
-      // Check for shadow DOM
-      if (node.shadowRoot) {
-        queue.push({ node: node.shadowRoot, depth: depth + 1 });
-      }
-
-      // Check if node is an <img> with src, data-src, or data-lazy-src
-      if (node.tagName === 'IMG' && (node.src || node.dataset.src || node.dataset.lazySrc || node.dataset.image)) {
-        const src = node.src || node.dataset.src || node.dataset.lazySrc || node.dataset.image;
-        try {
-          const url = new URL(src, pageUrl);
-          if (imageFormats.test(url.pathname)) {
-            return { src };
-          }
-        } catch (e) {
-          console.warn("Invalid image URL:", src, e);
-        }
-      }
-
-      // Check if node is a <picture>
-      if (node.tagName === 'PICTURE') {
-        const img = node.querySelector('img');
-        if (img && (img.src || img.dataset.src || img.dataset.lazySrc || img.dataset.image)) {
-          const src = img.src || img.dataset.src || img.dataset.lazySrc || img.dataset.image;
-          try {
-            const url = new URL(src, pageUrl);
-            if (imageFormats.test(url.pathname)) {
-              return { src };
-            }
-          } catch (e) {
-            console.warn("Invalid picture img URL:", src, e);
-          }
-        }
-        const source = node.querySelector('source[srcset], source[data-srcset], source[data-lazy-srcset]');
-        if (source && (source.srcset || source.dataset.srcset || source.dataset.lazySrcset)) {
-          const srcset = (source.srcset || source.dataset.srcset || source.dataset.lazySrcset).split(',').map(s => s.trim().split(' ')[0]).find(url => url);
-          if (srcset) {
-            try {
-              const url = new URL(srcset, pageUrl);
-              if (imageFormats.test(url.pathname)) {
-                return { src: srcset };
-              }
-            } catch (e) {
-              console.warn("Invalid srcset URL:", srcset, e);
-            }
-          }
-        }
-      }
-
-      // Check for background-image
-      const computedStyle = window.getComputedStyle(node);
-      const bgImage = computedStyle.backgroundImage;
-      if (bgImage && bgImage !== 'none' && bgImage.includes('url(')) {
-        const urlMatch = bgImage.match(/url\(["']?(.+?)["']?\)/i);
-        if (urlMatch && urlMatch[1]) {
-          try {
-            const url = new URL(urlMatch[1], pageUrl);
-            if (imageFormats.test(url.pathname)) {
-              return { src: urlMatch[1] };
-            }
-          } catch (e) {
-            console.warn("Invalid background-image URL:", urlMatch[1], e);
-          }
-        }
-      }
-
-      // Add parent, children, and siblings to queue
-      if (node.parentElement && node !== document.documentElement) {
-        queue.push({ node: node.parentElement, depth: depth + 1 });
-      }
-      const children = node.children || [];
-      for (const child of children) {
-        queue.push({ node: child, depth: depth + 1 });
-      }
-      if (node.parentElement) {
-        const siblings = node.parentElement.children;
-        for (const sibling of siblings) {
-          if (sibling !== node) {
-            queue.push({ node: sibling, depth: depth + 1 });
-          }
+    // Check banner structure: .single-wrapper > .image-wrapper > img
+    const singleWrapper = element.closest('.single-wrapper');
+    if (singleWrapper) {
+      const imageWrapper = singleWrapper.querySelector('.image-wrapper');
+      if (imageWrapper) {
+        const img = imageWrapper.querySelector('img');
+        if (img) {
+          const src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
+          if (src) return img;
         }
       }
     }
-
+    // Check slider or dynamic content within .elementor-widget-container
+    const widgetContainer = element.closest('.elementor-widget-container');
+    if (widgetContainer) {
+      const img = widgetContainer.querySelector('img');
+      if (img) {
+        const src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
+        if (src) return img;
+      }
+    }
+    // Check if current element is an image
+    if (element.tagName === 'IMG') {
+      const src = element.src || element.getAttribute('data-src') || element.getAttribute('data-lazy-src');
+      if (src) return element;
+    }
+    // Search through all images in the element's children
+    const images = element.getElementsByTagName('img');
+    for (const img of images) {
+      const src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
+      if (src) return img;
+    }
+    // Check for background-image as a fallback
+    const computedStyle = window.getComputedStyle(element);
+    const bgImage = computedStyle.backgroundImage;
+    if (bgImage && bgImage !== 'none' && bgImage.includes('url(')) {
+      return element; // Return element with background image
+    }
     return null;
   }
 
+  // Main execution block with error handling
   try {
     let imageName = '';
     const imageFormats = /\.(png|jpg|jpeg|gif|webp|svg|bmp|tiff)$/i;
+    const pageUrl = window.location.href;
+    const activeElement = window.lastRightClickedElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
 
-    // If srcUrl is provided (context menu on <img>), use it directly
-    if (srcUrl) {
-      const url = new URL(srcUrl, pageUrl);
-      const pathname = url.pathname;
-      const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
-      if (imageFormats.test(filename)) {
-        imageName = decodeURIComponent(filename);
-      }
+    if (!activeElement) {
+      throw new Error("No active element found for image name extraction");
     }
 
-    // If no valid imageName from srcUrl, check active element
-    if (!imageName) {
-      const activeElement = document.activeElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
-      if (!activeElement) {
-        throw new Error("No active element found");
-      }
-
-      // Check for page builder classes
-      const pageBuilder = activeElement.closest('.elementor, .wix, .sqs-block, .wp-block, .et_pb_module, .vc_custom, .vc_row');
-      console.log("Page builder detected:", pageBuilder ? pageBuilder.className : 'none');
-
-      // Check for closest image in hierarchy
-      const img = findClosestImage(activeElement);
-      if (img && img.src) {
-        const url = new URL(img.src, pageUrl);
+    // Check if active element is an <img> tag
+    if (activeElement.tagName === 'IMG') {
+      const src = activeElement.src || activeElement.getAttribute('data-src') || activeElement.getAttribute('data-lazy-src');
+      if (src) {
+        const url = new URL(src, pageUrl);
         const pathname = url.pathname;
         const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
         if (imageFormats.test(filename)) {
@@ -442,255 +408,193 @@ function copyImageName(srcUrl, pageUrl) {
       }
     }
 
-    // If no image name found, show error
+    // If no valid image name, check hierarchy or banner/slider structure
     if (!imageName) {
-      throw new Error("No valid image found in hierarchy");
+      const img = findFirstImage(activeElement);
+      if (img) {
+        const src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
+        if (src) {
+          const url = new URL(src, pageUrl);
+          const pathname = url.pathname;
+          const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
+          if (imageFormats.test(filename)) {
+            imageName = decodeURIComponent(filename);
+          }
+        }
+      }
     }
 
-    // Copy only the filename (without path)
-    const filenameOnly = imageName.split('/').pop();
-    navigator.clipboard.writeText(filenameOnly).then(() => {
-      showToast("Image Name Copied: " + filenameOnly, "success");
+    // Fallback to background image
+    if (!imageName) {
+      const computedStyle = window.getComputedStyle(activeElement);
+      const bgImage = computedStyle.backgroundImage;
+      if (bgImage && bgImage !== 'none' && bgImage.includes('url(')) {
+        const urlMatch = bgImage.match(/url\(["']?(.+?)["']?\)/i);
+        if (urlMatch && urlMatch[1]) {
+          const url = new URL(urlMatch[1], pageUrl);
+          const pathname = url.pathname;
+          const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
+          if (imageFormats.test(filename)) {
+            imageName = decodeURIComponent(filename);
+          }
+        }
+      }
+    }
+
+    if (!imageName) {
+      throw new Error("No valid image found");
+    }
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(imageName).then(() => {
+      showToast("Image Name Copied: " + imageName, "success");
+    }).catch((e) => {
+      console.error("Failed to write image name to clipboard:", e);
+      showToast("Failed to copy image name", "error");
     });
   } catch (e) {
-    console.error("Error copying image name:", e);
+    console.error("Error in copyImageName function:", e.message, e.stack);
     showToast("Failed to copy image name: " + e.message, "error");
   }
 }
 
 // Copy alt text from image
 function copyAltText() {
-  // Define findClosestImage with DFS traversal
-  function findClosestImage(element) {
+  // Helper function to find the first image with alt text
+  function findFirstImageWithAlt(element) {
     if (!element) return null;
-
-    const visited = new Set();
-    const maxDepth = 20;
-
-    function dfs(node, depth) {
-      if (depth > maxDepth || visited.has(node)) return null;
-      visited.add(node);
-
-      // Check for shadow DOM
-      if (node.shadowRoot) {
-        const shadowResult = dfs(node.shadowRoot, depth + 1);
-        if (shadowResult) return shadowResult;
-      }
-
-      // Check if node is an <img> with alt, data-alt, or data-image-alt
-      if (node.tagName === 'IMG' && (node.hasAttribute('alt') || node.dataset.alt || node.dataset.imageAlt)) {
-        const altText = (node.getAttribute('alt') || node.dataset.alt || node.dataset.imageAlt || '').trim();
-        if (altText) {
-          console.log("Found alt text on:", node.tagName, "alt:", altText);
-          return { element: node, alt: altText };
+    // Check banner structure: .single-wrapper > .image-wrapper > img
+    const singleWrapper = element.closest('.single-wrapper');
+    if (singleWrapper) {
+      const imageWrapper = singleWrapper.querySelector('.image-wrapper');
+      if (imageWrapper) {
+        const img = imageWrapper.querySelector('img');
+        if (img && img.hasAttribute('alt')) {
+          const altText = img.getAttribute('alt').trim();
+          if (altText) return img;
         }
       }
-
-      // Check if node is a <picture>
-      if (node.tagName === 'PICTURE') {
-        const img = node.querySelector('img');
-        if (img && (img.hasAttribute('alt') || img.dataset.alt || img.dataset.imageAlt)) {
-          const altText = (img.getAttribute('alt') || img.dataset.alt || img.dataset.imageAlt || '').trim();
-          if (altText) {
-            console.log("Found alt text in picture on:", img.tagName, "alt:", altText);
-            return { element: img, alt: altText };
-          }
-        }
-      }
-
-      // Recurse on children
-      const children = node.children || [];
-      for (const child of children) {
-        const result = dfs(child, depth + 1);
-        if (result) return result;
-      }
-
-      // Recurse on parent if not root
-      if (node.parentElement && node !== document.documentElement) {
-        const result = dfs(node.parentElement, depth + 1);
-        if (result) return result;
-      }
-
-      return null;
     }
-
-    return dfs(element, 0);
+    // Check slider or dynamic content within .elementor-widget-container
+    const widgetContainer = element.closest('.elementor-widget-container');
+    if (widgetContainer) {
+      const img = widgetContainer.querySelector('img');
+      if (img && img.hasAttribute('alt')) {
+        const altText = img.getAttribute('alt').trim();
+        if (altText) return img;
+      }
+    }
+    // Check if current element has alt text
+    if (element.tagName === 'IMG' && element.hasAttribute('alt')) {
+      const altText = element.getAttribute('alt').trim();
+      if (altText) return element;
+    }
+    // Search through all images for alt text
+    const images = element.getElementsByTagName('img');
+    for (const img of images) {
+      if (img.hasAttribute('alt')) {
+        const altText = img.getAttribute('alt').trim();
+        if (altText) return img;
+      }
+    }
+    return null;
   }
 
+  // Main execution block with error handling
   try {
     let altText = '';
-    const activeElement = document.activeElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+    const activeElement = window.lastRightClickedElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
 
     if (!activeElement) {
-      throw new Error("No active element found");
+      throw new Error("No active element found for alt text extraction");
     }
 
-    // Check for page builder classes
-    const pageBuilder = activeElement.closest('.elementor, .wix, .sqs-block, .wp-block, .et_pb_module, .vc_custom, .vc_row');
-    console.log("Page builder detected for alt text:", pageBuilder ? pageBuilder.className : 'none');
-
-    // If activeElement is an image or in image-wrapper, check parent container
-    let startElement = activeElement;
-    if (activeElement.tagName === 'IMG' || activeElement.closest('.image-wrapper, .elementor-image, .sqs-block-image')) {
-      const container = activeElement.closest('.container, .elementor-container, .sqs-block, .wp-block, .et_pb_row, .vc_row');
-      if (container) {
-        console.log("Detected image layer, searching container:", container.className);
-        startElement = container;
+    // Check if active element is an <img> tag with alt attribute
+    if (activeElement.tagName === 'IMG') {
+      const potentialAlt = activeElement.getAttribute('alt');
+      if (potentialAlt && potentialAlt.trim()) {
+        altText = potentialAlt.trim();
       }
     }
 
-    // Check for closest image with alt text in hierarchy
-    const img = findClosestImage(startElement);
-    if (img && img.alt) {
-      altText = img.alt;
+    // If no alt text, check hierarchy or banner/slider structure
+    if (!altText) {
+      const img = findFirstImageWithAlt(activeElement);
+      if (img) {
+        const potentialAlt = img.getAttribute('alt');
+        if (potentialAlt && potentialAlt.trim()) {
+          altText = potentialAlt.trim();
+        }
+      }
     }
 
-    // If no alt text found or empty, show error
     if (!altText) {
       throw new Error("No alt text found or alt attribute is empty");
     }
 
-    // Copy alt text to clipboard
+    // Copy to clipboard
     navigator.clipboard.writeText(altText).then(() => {
       showToast("Alt Text Copied: " + altText, "success");
+    }).catch((e) => {
+      console.error("Failed to write alt text to clipboard:", e);
+      showToast("Failed to copy alt text", "error");
     });
   } catch (e) {
-    console.error("Error copying alt text:", e);
+    console.error("Error in copyAltText function:", e.message, e.stack);
     showToast("Failed to copy alt text: " + e.message, "error");
   }
 }
 
 // Copy button or link label
 function copyLabel() {
-  // Define findClosestLabelElement with DFS traversal
-  function findClosestLabelElement(element) {
-    if (!element) return null;
-
-    const visited = new Set();
-    const maxDepth = 20;
-
-    function dfs(node, depth) {
-      if (depth > maxDepth || visited.has(node)) return null;
-      visited.add(node);
-
-      // Check for shadow DOM
-      if (node.shadowRoot) {
-        const shadowResult = dfs(node.shadowRoot, depth + 1);
-        if (shadowResult) return shadowResult;
-      }
-
-      // Check if node is a <button> or <a> with text content
-      if ((node.tagName === 'BUTTON' || node.tagName === 'A') && node.textContent.trim()) {
-        console.log("Found button/a:", node.tagName, "text:", node.textContent.trim());
-        return { element: node, text: node.textContent.trim() };
-      }
-
-      // Check for interactive elements with descriptive attributes
-      const isInteractive = node.hasAttribute('onclick') || 
-                           node.getAttribute('role') === 'button' || 
-                           node.hasAttribute('tabindex') || 
-                           node.className.includes('button') || 
-                           node.className.includes('btn') || 
-                           node.className.includes('elementor-button') || 
-                           node.className.includes('sqs-block-button') || 
-                           node.className.includes('wp-block-button');
-      if (isInteractive) {
-        let text = '';
-        const title = node.getAttribute('title');
-        if (title && title.trim()) {
-          text = title.trim();
-          console.log("Found title on:", node.tagName, "title:", title);
-        }
-        const ariaDescribedBy = node.getAttribute('aria-describedby');
-        if (ariaDescribedBy && !text) {
-          const describedElement = document.getElementById(ariaDescribedBy) || document.querySelector(`[id="${ariaDescribedBy}"]`);
-          if (describedElement && describedElement.textContent.trim()) {
-            text = describedElement.textContent.trim();
-            console.log("Found aria-describedby on:", node.tagName, "text:", text);
-          }
-        }
-        const ariaLabel = node.getAttribute('aria-label');
-        if (ariaLabel && !text) {
-          text = ariaLabel.trim();
-          console.log("Found aria-label on:", node.tagName, "text:", ariaLabel);
-        }
-        const dataTitle = node.dataset.title;
-        if (dataTitle && !text) {
-          text = dataTitle.trim();
-          console.log("Found data-title on:", node.tagName, "text:", dataTitle);
-        }
-        const dataLabel = node.dataset.label;
-        if (dataLabel && !text) {
-          text = dataLabel.trim();
-          console.log("Found data-label on:", node.tagName, "text:", dataLabel);
-        }
-        if (!text && node.textContent.trim()) {
-          text = node.textContent.trim();
-          console.log("Found textContent on:", node.tagName, "text:", text);
-        }
-        if (text) {
-          return { element: node, text };
-        }
-      }
-
-      // Recurse on children
-      const children = node.children || [];
-      for (const child of children) {
-        const result = dfs(child, depth + 1);
-        if (result) return result;
-      }
-
-      // Recurse on parent if not root
-      if (node.parentElement && node !== document.documentElement) {
-        const result = dfs(node.parentElement, depth + 1);
-        if (result) return result;
-      }
-
-      return null;
-    }
-
-    return dfs(element, 0);
-  }
-
   try {
     let labelText = '';
-    const activeElement = document.activeElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+    const activeElement = window.lastRightClickedElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+    let depth = 0;
+    const maxDepth = 5;
 
     if (!activeElement) {
-      throw new Error("No active element found");
+      throw new Error("No active element found for label extraction");
     }
 
-    // Check for page builder classes
-    const pageBuilder = activeElement.closest('.elementor, .wix, .sqs-block, .wp-block, .et_pb_module, .vc_custom, .vc_row');
-    console.log("Page builder detected for label:", pageBuilder ? pageBuilder.className : 'none');
-
-    // If activeElement is an image or in image-wrapper, check parent container
-    let startElement = activeElement;
-    if (activeElement.tagName === 'IMG' || activeElement.closest('.image-wrapper, .elementor-image, .sqs-block-image')) {
-      const container = activeElement.closest('.container, .elementor-container, .sqs-block, .wp-block, .et_pb_row, .vc_row');
-      if (container) {
-        console.log("Detected image layer, searching container:", container.className);
-        startElement = container;
+    let current = activeElement;
+    while (current && depth < maxDepth && !labelText) {
+      if ((current.tagName === 'BUTTON' || current.tagName === 'A') && current.textContent.trim()) {
+        labelText = current.textContent.trim();
+        console.log("Found label from textContent:", labelText);
+        break;
+      } else if (current.hasAttribute('title') && current.getAttribute('title').trim()) {
+        labelText = current.getAttribute('title').trim();
+        console.log("Found label from title:", labelText);
+        break;
+      } else if (current.hasAttribute('aria-label') && current.getAttribute('aria-label').trim()) {
+        labelText = current.getAttribute('aria-label').trim();
+        console.log("Found label from aria-label:", labelText);
+        break;
       }
+      current = current.parentElement;
+      depth++;
     }
 
-    // Check for closest label element in hierarchy
-    const element = findClosestLabelElement(startElement);
-    if (element && element.text) {
-      labelText = element.text;
-    }
-
-    // If no label text found or empty, show error
     if (!labelText) {
       throw new Error("No button or link label found in hierarchy");
     }
 
-    // Copy label text to clipboard
     navigator.clipboard.writeText(labelText).then(() => {
       showToast("Label Copied: " + labelText, "success");
+    }).catch((e) => {
+      console.error("Failed to write label to clipboard:", e);
+      showToast("Failed to copy label", "error");
     });
   } catch (e) {
-    console.error("Error copying label:", e);
+    console.error("Error in copyLabel function:", e.message, e.stack);
     showToast("Failed to copy label: " + e.message, "error");
   }
+}
+
+// Placeholder for showToast function (assuming it's defined elsewhere or in a utility script)
+// This is included to maintain functionality; adjust as per your implementation
+function showToast(message, type) {
+  console.log(`Toast - ${type}: ${message}`);
+  // Add your toast notification logic here if not already defined
 }

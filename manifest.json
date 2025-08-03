@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CopyPro Toolkit",
-  "version": "2.0.6",
+  "version": "2.5.8",
   "description": "Advanced copy utilities with modern UI, reliable clipboard handling, TinyMCE-compatible text copying, and image name/alt text copying using Font Awesome CDN.",
   "author": "Vaibhav Singh",
   "homepage_url": "https://exiverlabs.co.in",
