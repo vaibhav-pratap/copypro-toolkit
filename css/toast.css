@@ -1,4 +1,4 @@
-/* M3 Snackbar Styles for CopyPro Toolkit */
+/* Elite UI Snackbar Styles for CopyPro Toolkit */
 .copypro-toast {
   position: fixed;
   top: 32px;
@@ -7,60 +7,62 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px 28px;
-  border-radius: 16px;
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 16px;
+  padding: 16px 36px;
+  border-radius: 100px; /* Stadium Shape */
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  font-size: 18px; /* Slightly larger text */
   font-weight: 500;
   z-index: 2147483647;
-  background-color: #313033;
-  color: #f4f0f4;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  animation: m3-slide-down 0.4s cubic-bezier(0.05, 0.7, 0.1, 1);
+  background: rgba(28, 28, 30, 0.95); /* Deep Modern Slate */
+  color: #ffffff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 1px rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(16px); /* Premium Glassmorphism */
+  -webkit-backdrop-filter: blur(16px);
+  animation: elite-slide-down 0.5s cubic-bezier(0.19, 1, 0.22, 1);
   pointer-events: none;
-  min-width: 280px;
+  min-width: 320px;
   justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.08); /* Sophisticated hairline border */
 }
 
 .copypro-toast-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  transform: scale(1.2);
+  transform: scale(1.6); /* Larger icon */
+  filter: none; /* Removed glow thing as requested */
 }
 
 .copypro-toast.fade-out {
   opacity: 0;
-  transform: translate(-50%, -20px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transform: translate(-50%, -15px) scale(0.98);
+  transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
-@keyframes m3-slide-down {
+@keyframes elite-slide-down {
   from {
     opacity: 0;
-    transform: translate(-50%, -40px);
+    transform: translate(-50%, -50px) scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, 0);
+    transform: translate(-50%, 0) scale(1);
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .copypro-toast {
-    background-color: #353438;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
+/* Elite State Coloring (Icon-Centric, No Side Borders) */
+.copypro-toast-success .copypro-toast-icon {
+  color: #10b981; /* Emerald */
 }
 
-.copypro-toast-success {
-  border-left: 4px solid #d0bcff;
+.copypro-toast-error .copypro-toast-icon {
+  color: #fb7185; /* Rose */
 }
 
-.copypro-toast-error {
-  border-left: 4px solid #f2b8b5;
+.copypro-toast-warning .copypro-toast-icon {
+  color: #fbbf24; /* Amber */
 }
 
-.copypro-toast-warning {
-  border-left: 4px solid #ffb74d;
+.copypro-toast-info .copypro-toast-icon {
+  color: #818cf8; /* Indigo */
 }

@@ -8,9 +8,9 @@ This tool enhances the right-click context menu, allowing you to copy image name
 
 ## 📦 Version Information
 
-- **Version:** v2.5.8  
-- **Release Date:** August 03, 2025  
-- **Last Updated:** 08:58 PM IST (Sunday)  
+- **Version:** v2.7.0  
+- **Release Date:** March 13, 2026  
+- **Last Updated:** 11:13 PM IST (Friday)  
 - **Status:** ✅ Stable  
 
 ### 🛠️ Change Log
@@ -37,9 +37,7 @@ This tool enhances the right-click context menu, allowing you to copy image name
 
 ## 👨‍💻 Developed By
 
-- **Designer & Developer:** Vaibhav Singh (vaibhav@exiverlabs.co.in)
-- **Powered By:** [Exiverlabs](https://exiverlabs.co.in)  
-- **Assisted By:** *Grok 3* by xAI for code optimization and debugging.
+- **Designer & Developer:** Vaibhav Singh
 
 ---
 
