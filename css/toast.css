@@ -1,41 +1,44 @@
 /* M3 Snackbar Styles for CopyPro Toolkit */
 .copypro-toast {
   position: fixed;
-  bottom: 32px;
+  top: 32px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  border-radius: 12px;
+  gap: 16px;
+  padding: 16px 28px;
+  border-radius: 16px;
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   z-index: 2147483647;
   background-color: #313033;
   color: #f4f0f4;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  animation: m3-slide-up 0.4s cubic-bezier(0.05, 0.7, 0.1, 1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  animation: m3-slide-down 0.4s cubic-bezier(0.05, 0.7, 0.1, 1);
   pointer-events: none;
+  min-width: 280px;
+  justify-content: center;
 }
 
 .copypro-toast-icon {
   display: flex;
   align-items: center;
   justify-content: center;
+  transform: scale(1.2);
 }
 
 .copypro-toast.fade-out {
   opacity: 0;
-  transform: translate(-50%, 20px);
+  transform: translate(-50%, -20px);
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-@keyframes m3-slide-up {
+@keyframes m3-slide-down {
   from {
     opacity: 0;
-    transform: translate(-50%, 40px);
+    transform: translate(-50%, -40px);
   }
   to {
     opacity: 1;

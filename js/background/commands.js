@@ -1,20 +1,19 @@
 import { getSettings } from './main.js';
 import { copyCleanText } from '../features/text.js';
 import { copySlugFromFocused } from '../features/slug.js';
-import { copyImageName, copyAltText } from '../features/image.js';
 import { copyPage } from '../features/page.js';
 
 export function initializeCommands() {
   chrome.commands.onCommand.addListener(async (command, tab) => {
     if (!tab || !tab.id) return;
-    
+
     // Ignore restricted sites
     if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) return;
 
     // Use synchronous settings to preserve user gesture
     const settings = getSettings();
     const preferMd = settings.preferMarkdown === true;
-    
+
     let func = null;
     let args = [];
 
@@ -27,11 +26,11 @@ export function initializeCommands() {
         func = copySlugFromFocused;
         break;
       case "copy-image-name":
-        func = copyImageName;
-        break;
+        chrome.tabs.sendMessage(tab.id, { action: 'copy-image-name' });
+        return;
       case "copy-alt-text":
-        func = copyAltText;
-        break;
+        chrome.tabs.sendMessage(tab.id, { action: 'copy-alt-text' });
+        return;
       case "copy-page":
         func = copyPage;
         break;

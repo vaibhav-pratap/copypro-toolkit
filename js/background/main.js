@@ -4,7 +4,6 @@ import { initializeContextMenus } from './menus.js';
 import { initializeCommands } from './commands.js';
 import { copySlug, copySelectionAsSlug } from '../features/slug.js';
 import { copyCleanText } from '../features/text.js';
-import { copyImageName, copyAltText, copyImageDataUri } from '../features/image.js';
 import { copyLabel } from '../features/label.js';
 import { copyPage } from '../features/page.js';
 import { copyCssSelector } from '../features/selector.js';
@@ -38,7 +37,7 @@ function executeFeature(tabId, func, args = []) {
 chrome.runtime.onInstalled.addListener(() => {
   console.log("CopyPro Toolkit Modular: Extension installed or updated");
   initializeContextMenus();
-  
+
   chrome.storage.sync.set({
     enableSlug: true,
     enableCleanText: true,
@@ -108,13 +107,13 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       args = [preferMd];
       break;
     case "copy-image-name":
-      func = copyImageName;
+      chrome.tabs.sendMessage(tab.id, { action: 'copy-image-name' });
       break;
     case "copy-alt-text":
-      func = copyAltText;
+      chrome.tabs.sendMessage(tab.id, { action: 'copy-alt-text' });
       break;
     case "copy-image-data":
-      func = copyImageDataUri;
+      chrome.tabs.sendMessage(tab.id, { action: 'copy-image-data' });
       break;
     case "copy-label":
       func = copyLabel;

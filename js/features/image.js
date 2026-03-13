@@ -1,153 +1,145 @@
-// js/features/image.js - Image name & Alt text logic (Self-Contained)
+/**
+ * @file image.js - Image Feature Orchestrator (v6.3.0)
+ * @description Decoupled UI and Interaction handler for Image features.
+ * Runs as a content script to ensure reliable notifications and engine access.
+ */
 
-export function copyImageName() {
-  const showToast = (msg, type) => {
-    if (typeof window.showToast === 'function') window.showToast(msg, type);
-    else console.log(`[CopyPro] ${type}: ${msg}`);
-  };
+(function() {
+  'use strict';
 
-  const imageFormats = /\.(png|jpg|jpeg|gif|webp|svg|bmp|tiff)$/i;
-  const pageUrl = window.location.href;
-  const activeElement = window.lastRightClickedElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+  // --- Feature Orchestrator ---
 
-  const findFirstImage = (element) => {
-    if (!element) return null;
-    const singleWrapper = element.closest('.single-wrapper');
-    if (singleWrapper) {
-      const img = singleWrapper.querySelector('.image-wrapper img');
-      if (img) return img;
-    }
-    const widgetContainer = element.closest('.elementor-widget-container');
-    if (widgetContainer) {
-      const img = widgetContainer.querySelector('img');
-      if (img) return img;
-    }
-    if (element.tagName === 'IMG') return element;
-    const images = element.getElementsByTagName('img');
-    if (images.length > 0) return images[0];
-    
-    const computedStyle = window.getComputedStyle(element);
-    const bgImage = computedStyle.backgroundImage;
-    if (bgImage && bgImage !== 'none' && bgImage.includes('url(')) return element;
-    
-    return null;
-  };
-
-  try {
-    let imageName = '';
-    const img = findFirstImage(activeElement);
-    if (!img) throw new Error("No valid image found");
-
-    let src = '';
-    if (img.tagName === 'IMG') {
-      src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
-    } else {
-      const bgImage = window.getComputedStyle(img).backgroundImage;
-      const urlMatch = bgImage.match(/url\(["']?(.+?)["']?\)/i);
-      if (urlMatch) src = urlMatch[1];
-    }
-
-    if (src) {
-      const url = new URL(src, pageUrl);
-      const filename = url.pathname.substring(url.pathname.lastIndexOf('/') + 1);
-      if (imageFormats.test(filename)) {
-        imageName = decodeURIComponent(filename);
+  const Orchestrator = {
+    /**
+     * Common notification and history reporting bridge
+     */
+    report: (label, value, data = {}) => {
+      const displayValue = value && value !== 'None Found' && value !== 'No Context Found' ? value : 'None';
+      
+      // 1. Direct UI Notification (Guaranteed in Content Scope)
+      if (typeof window.showToast === 'function') {
+        const toastType = data.source ? 'success' : 'warning';
+        // v6.6: Universal Minimalist - No suffixes or labels
+        window.showToast(`${label}: ${displayValue.substring(0, 50)}`, toastType);
       }
-    }
 
-    if (!imageName) throw new Error("No valid filename found");
-
-    navigator.clipboard.writeText(imageName).then(() => {
-      showToast("Image Name Copied: " + imageName, "success");
-      chrome.runtime.sendMessage({ action: 'addToHistory', data: { type: 'Image Name', value: imageName } });
-    });
-  } catch (e) {
-    showToast("Failed to copy image name: " + e.message, "error");
-  }
-}
-
-export function copyAltText() {
-  const showToast = (msg, type) => {
-    if (typeof window.showToast === 'function') window.showToast(msg, type);
-    else console.log(`[CopyPro] ${type}: ${msg}`);
-  };
-
-  const activeElement = window.lastRightClickedElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
-
-  const findFirstAlt = (element) => {
-    if (!element) return null;
-    if (element.tagName === 'IMG' && element.alt.trim()) return element.alt.trim();
-    
-    const singleWrapper = element.closest('.single-wrapper');
-    if (singleWrapper) {
-      const img = singleWrapper.querySelector('.image-wrapper img');
-      if (img && img.alt.trim()) return img.alt.trim();
-    }
-    
-    const widgetContainer = element.closest('.elementor-widget-container');
-    if (widgetContainer) {
-      const img = widgetContainer.querySelector('img');
-      if (img && img.alt.trim()) return img.alt.trim();
-    }
-
-    const images = element.getElementsByTagName('img');
-    for (const img of images) {
-      if (img.alt.trim()) return img.alt.trim();
-    }
-    return null;
-  };
-
-  try {
-    const altText = findFirstAlt(activeElement);
-    if (!altText) throw new Error("No alt text found");
-
-    navigator.clipboard.writeText(altText).then(() => {
-      showToast("Alt Text Copied: " + altText, "success");
-      chrome.runtime.sendMessage({ action: 'addToHistory', data: { type: 'Alt Text', value: altText } });
-    });
-  } catch (e) {
-    showToast("Failed to copy alt text: " + e.message, "error");
-  }
-}
-
-export function copyImageDataUri() {
-  const showToast = (msg, type) => {
-    if (typeof window.showToast === 'function') window.showToast(msg, type);
-    else console.log(`[CopyPro] ${type}: ${msg}`);
-  };
-
-  const activeElement = window.lastRightClickedElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
-  let target = activeElement;
-  if (target.tagName !== 'IMG') {
-    target = target.querySelector('img') || target.closest('img');
-  }
-
-  if (!target || target.tagName !== 'IMG') {
-    showToast("Please right-click an actual image", "error");
-    return;
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = target.naturalWidth;
-  canvas.height = target.naturalHeight;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(target, 0, 0);
-  
-  try {
-    const dataUri = canvas.toDataURL('image/png');
-    navigator.clipboard.writeText(dataUri).then(() => {
-      showToast("Image Data URI Copied", "success");
-      chrome.runtime.sendMessage({ 
-        action: 'addToHistory', 
-        data: { 
-          type: 'Data URI', 
-          value: 'Base64 Data',
+      // 2. Background Sync for History
+      chrome.runtime.sendMessage({
+        action: 'addToHistory',
+        data: {
+          type: label,
+          value: value.substring(0, 150),
           sourceUrl: window.location.href,
-          sourceTitle: document.title
-        } 
+          sourceTitle: document.title,
+          meta: data.meta || {}
+        }
       });
+    },
+
+    /**
+     * Copy Image Name
+     */
+    copyName: () => {
+      if (!window.CopyPro) return console.error("[CopyPro] Engine not loaded");
+      const data = window.CopyPro.findImageData();
+      
+      if (!data || data.type === 'none') {
+        Orchestrator.report("Image Name", "No Asset Found", { type: 'fail' });
+        return;
+      }
+
+      navigator.clipboard.writeText(data.name).then(() => {
+        Orchestrator.report("Image Name", data.name, data);
+      });
+    },
+
+    /**
+     * Copy Alt Text
+     */
+    copyAlt: () => {
+      if (!window.CopyPro) return console.error("[CopyPro] Engine not loaded");
+      const data = window.CopyPro.findImageData();
+
+      if (!data || data.type === 'none') {
+        Orchestrator.report("Alt Text", "No Context Found", { type: 'fail' });
+        return;
+      }
+
+      navigator.clipboard.writeText(data.alt).then(() => {
+        Orchestrator.report("Alt Text", data.alt, data);
+      });
+    },
+
+    /**
+     * Copy Data URI
+     */
+    copyData: () => {
+      if (!window.CopyPro) return console.error("[CopyPro] Engine not loaded");
+      const data = window.CopyPro.findImageData();
+
+      if (!data || !data.source || data.type === 'none') {
+        if (window.showToast) window.showToast("No convertible media found", "error");
+        return;
+      }
+
+      const convert = (src, type, el) => {
+        // Vector Bridge
+        if (type === 'tag_svg') {
+          try {
+            const s = new XMLSerializer();
+            const xml = s.serializeToString(el);
+            const b64 = btoa(unescape(encodeURIComponent(xml)));
+            const uri = `data:image/svg+xml;base64,${b64}`;
+            navigator.clipboard.writeText(uri).then(() => Orchestrator.report("SVG Data URI", "Vector String", data));
+          } catch(e) { if (window.showToast) window.showToast("SVG Serialization Error", "error"); }
+          return;
+        }
+
+        // Canvas Bridge
+        if (type === 'tag_canvas') {
+          try {
+            const uri = el.toDataURL('image/png');
+            navigator.clipboard.writeText(uri).then(() => Orchestrator.report("Canvas Data URI", "Image Snapshot", data));
+          } catch(e) { if (window.showToast) window.showToast("Canvas Security Error", "error"); }
+          return;
+        }
+
+        // Raster Bridge
+        if (typeof src !== 'string') return;
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const cvs = document.createElement('canvas');
+          cvs.width = img.naturalWidth;
+          cvs.height = img.naturalHeight;
+          const ctx = cvs.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          try {
+            const uri = cvs.toDataURL('image/png');
+            navigator.clipboard.writeText(uri).then(() => Orchestrator.report("Data URI", "Base64 Image", data));
+          } catch(e) { if (window.showToast) window.showToast("CORS policy blocked conversion", "error"); }
+        };
+        img.onerror = () => { if (window.showToast) window.showToast("Media resource bridge failed", "error"); };
+        img.src = src;
+      };
+
+      convert(data.source, data.type, data.el);
+    }
+  };
+
+  // --- Messaging Initialization ---
+
+  const init = () => {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      try {
+        if (request.action === 'copy-image-name') Orchestrator.copyName();
+        else if (request.action === 'copy-alt-text') Orchestrator.copyAlt();
+        else if (request.action === 'copy-image-data') Orchestrator.copyData();
+      } catch (e) { console.error("[CopyPro] Image Feature Error:", e); }
     });
-  } catch (e) {
-    showToast("Failed to convert image (CORS?)", "error");
-  }
-}
+    console.log("[CopyPro] Image Feature Orchestrator (Modular) Ready.");
+  };
+
+  init();
+
+})();
