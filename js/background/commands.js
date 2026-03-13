@@ -25,9 +25,9 @@ export function initializeCommands() {
       case "copy-slug":
         func = copySlugFromFocused;
         break;
-      case "copy-image-name":
-        chrome.tabs.sendMessage(tab.id, { action: 'copy-image-name' });
-        return;
+      case "copy-page":
+        func = copyPage;
+        break;
       case "copy-alt-text":
         chrome.tabs.sendMessage(tab.id, { action: 'copy-alt-text' });
         return;

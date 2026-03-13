@@ -1,11 +1,10 @@
 // js/features/page.js - Page URL logic (Self-Contained)
 
-export function copyPage() {
-  const showToast = (msg, type) => {
-    if (typeof window.showToast === 'function') window.showToast(msg, type);
-    else console.log(`[CopyPro] ${type}: ${msg}`);
-  };
+const showToast = (msg, type) => {
+  chrome.runtime.sendMessage({ action: 'show-toast', message: msg, type: type || 'success' });
+};
 
+export function copyPage() {
   const url = window.location.href;
   navigator.clipboard.writeText(url).then(() => {
     showToast("Page URL Copied", "success");

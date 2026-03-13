@@ -8,10 +8,16 @@ This tool enhances the right-click context menu, allowing you to copy image name
 
 ## 📦 Version Information
 
-- **Version:** v2.7.0  
-- **Release Date:** March 13, 2026  
-- **Last Updated:** 11:13 PM IST (Friday)  
+- **Version:** v2.7.1  
+- **Release Date:** March 14, 2026  
+- **Last Updated:** 12:05 AM IST (Saturday)  
 - **Status:** ✅ Stable  
+
+### 🛠️ Change Log
+
+- **Notification Bridge**: Fixed broken toasts for Clean Text, Slug, and Page URL actions by implementing a cross-world messaging bridge.
+- **Shortcut Cleanup**: Removed the invalid and conflicting `Ctrl+Shift+I` shortcut for image copying.
+- **Engine Optimization**: Refined feature modules for better reliability when injected into pages.
 
 ### 🛠️ Change Log
 

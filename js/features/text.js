@@ -69,13 +69,7 @@ export function copyCleanText(preferMarkdown = false) {
   };
 
   const showToast = (msg, type) => {
-    if (typeof window.showToast === 'function') {
-      window.showToast(msg, type);
-    } else {
-      console.log(`[CopyPro] Notification fallback: ${msg} (${type})`);
-      // Last resort fallback
-      if (type === 'error' || type === 'warning') alert(msg);
-    }
+    chrome.runtime.sendMessage({ action: 'show-toast', message: msg, type: type });
   };
 
   const selection = window.getSelection();

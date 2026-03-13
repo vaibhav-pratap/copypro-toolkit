@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CopyPro Toolkit",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "description": "Advanced copy utilities with modern UI, reliable clipboard handling, TinyMCE-compatible.",
   "author": "Vaibhav Singh",
   "homepage_url": "https://exiverlabs.co.in",
@@ -47,9 +47,6 @@
       "description": "Copy slug from focused link or page"
     },
     "copy-image-name": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+I"
-      },
       "description": "Copy image name from URL or background image"
     },
     "copy-alt-text": {

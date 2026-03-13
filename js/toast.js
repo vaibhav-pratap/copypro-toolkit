@@ -24,4 +24,11 @@ window.showToast = function(message, type = 'success') {
     toast.classList.add('fade-out');
     toast.addEventListener('transitionend', () => toast.remove());
   }, 3000);
-}
+};
+
+// v2.7.1: Cross-World Bridge for injected scripts
+chrome.runtime.onMessage.addListener((request) => {
+  if (request.action === 'show-toast') {
+    window.showToast(request.message, request.type || 'success');
+  }
+});

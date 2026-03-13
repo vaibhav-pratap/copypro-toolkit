@@ -1,11 +1,10 @@
 // js/features/slug.js - Slug extraction logic (Self-Contained)
 
-export function copySlug(linkUrl) {
-  const showToast = (msg, type) => {
-    if (typeof window.showToast === 'function') window.showToast(msg, type);
-    else console.log(`[CopyPro] ${type}: ${msg}`);
-  };
+const showToast = (msg, type) => {
+  chrome.runtime.sendMessage({ action: 'show-toast', message: msg, type: type || 'success' });
+};
 
+export function copySlug(linkUrl) {
   try {
     if (!linkUrl || !linkUrl.trim()) {
       showToast("No valid link URL provided", "error");
@@ -25,11 +24,6 @@ export function copySlug(linkUrl) {
 }
 
 export function copySelectionAsSlug() {
-  const showToast = (msg, type) => {
-    if (typeof window.showToast === 'function') window.showToast(msg, type);
-    else console.log(`[CopyPro] ${type}: ${msg}`);
-  };
-
   const selection = window.getSelection().toString().trim();
   if (!selection) {
     showToast("No text selected", "error");
@@ -57,11 +51,6 @@ export function copySelectionAsSlug() {
 }
 
 export function copySlugFromFocused() {
-  const showToast = (msg, type) => {
-    if (typeof window.showToast === 'function') window.showToast(msg, type);
-    else console.log(`[CopyPro] ${type}: ${msg}`);
-  };
-
   const activeElement = document.activeElement;
   let linkUrl = (activeElement && activeElement.tagName === 'A' && activeElement.href) ? activeElement.href : window.location.href;
   
