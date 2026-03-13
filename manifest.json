@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "CopyPro Toolkit",
-  "version": "2.5.8",
+  "name": "CopyPro Toolkit Pro",
+  "version": "2.6.0",
   "description": "Advanced copy utilities with modern UI, reliable clipboard handling, TinyMCE-compatible.",
   "author": "Vaibhav Singh",
   "homepage_url": "https://exiverlabs.co.in",
@@ -14,7 +14,8 @@
     "commands"
   ],
   "background": {
-    "service_worker": "js/background.js"
+    "service_worker": "js/background/main.js",
+    "type": "module"
   },
   "action": {
     "default_popup": "popup.html"

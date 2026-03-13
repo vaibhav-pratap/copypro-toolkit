@@ -1,53 +1,63 @@
+/* M3 Snackbar Styles for CopyPro Toolkit */
 .copypro-toast {
   position: fixed;
-  top: 16px;
+  bottom: 32px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 24px; /* Increased padding for larger size (+4px from 10px 20px) */
-  border-radius: 24px; /* Fully rounded corners for button-like appearance */
-  font-family: 'Roboto', system-ui, sans-serif;
-  font-size: 16px;
-  line-height: 1.4;
-  z-index: 10000;
-  background: rgba(0, 48, 135, 0.9); /* Royal Dark Blue with slight transparency */
-  color: #ffffff; /* White text for readability */
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(8px); /* Blurred transparent effect */
-  animation: slideIn 0.3s ease-out, fadeIn 0.3s ease-out;
-  transition: opacity 0.3s ease-out;
-}
-
-.copypro-toast-success {
-  background: rgba(0, 48, 135, 0.9);
-  color: #ffffff;
-}
-
-.copypro-toast-error {
-  background: rgba(0, 48, 135, 0.9);
-  color: #ffffff;
+  gap: 12px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 2147483647;
+  background-color: #313033;
+  color: #f4f0f4;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  animation: m3-slide-up 0.4s cubic-bezier(0.05, 0.7, 0.1, 1);
+  pointer-events: none;
 }
 
 .copypro-toast-icon {
-  font-size: 16px;
-  line-height: 1.4;
-  flex-shrink: 0;
-  color: #ffffff; /* White icon to match text */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .copypro-toast.fade-out {
   opacity: 0;
-  transform: translate(-50%, -8px);
+  transform: translate(-50%, 20px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-@keyframes slideIn {
-  from { transform: translate(-50%, -16px); }
-  to { transform: translate(-50%, 0); }
+@keyframes m3-slide-up {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 40px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@media (prefers-color-scheme: dark) {
+  .copypro-toast {
+    background-color: #353438;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+.copypro-toast-success {
+  border-left: 4px solid #d0bcff;
+}
+
+.copypro-toast-error {
+  border-left: 4px solid #f2b8b5;
+}
+
+.copypro-toast-warning {
+  border-left: 4px solid #ffb74d;
 }

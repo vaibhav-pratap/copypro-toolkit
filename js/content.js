@@ -1,25 +1,9 @@
-// Inject Font Awesome CSS for icons
-const fontAwesomeLink = document.createElement('link');
-fontAwesomeLink.rel = 'stylesheet';
-fontAwesomeLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css';
-fontAwesomeLink.crossOrigin = 'anonymous';
-document.head.appendChild(fontAwesomeLink);
+// content.js - Handling context menu persistence and dynamic DOM observation
 
-// Inject toast.css
-const toastStyles = document.createElement('link');
-toastStyles.rel = 'stylesheet';
-toastStyles.href = chrome.runtime.getURL('toast.css');
-document.head.appendChild(toastStyles);
-
-// Inject toast.js
-const toastScript = document.createElement('script');
-toastScript.src = chrome.runtime.getURL('toast.js');
-document.head.appendChild(toastScript);
-
-// content.js
+// Track the last clicked element for accurately targeting images/links
 document.addEventListener('contextmenu', (event) => {
   window.lastRightClickedElement = event.target;
-  console.log('Right-click detected on:', event.target);
+  // console.debug('Right-click target captured:', event.target);
 });
 
 
