@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "CopyPro Toolkit Pro",
+  "name": "CopyPro Toolkit",
   "version": "2.7.0",
   "description": "Advanced copy utilities with modern UI, reliable clipboard handling, TinyMCE-compatible.",
   "author": "Vaibhav Singh",
