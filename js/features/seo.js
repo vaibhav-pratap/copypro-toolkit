@@ -1,11 +1,10 @@
 // js/features/seo.js - SEO Heading Architecture logic (Self-Contained)
 
-export function copyHeadingStructure() {
-  const showToast = (msg, type) => {
-    if (typeof window.showToast === 'function') window.showToast(msg, type);
-    else console.log(`[CopyPro] ${type}: ${msg}`);
-  };
+const showToast = (msg, type) => {
+  chrome.runtime.sendMessage({ action: 'show-toast', message: msg, type: type || 'success' });
+};
 
+export function copyHeadingStructure() {
   const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
   if (headings.length === 0) {
     showToast("No headings found on this page", "error");

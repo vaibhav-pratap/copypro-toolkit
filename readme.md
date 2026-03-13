@@ -6,20 +6,19 @@ This tool enhances the right-click context menu, allowing you to copy image name
 
 ---
 
-## 📦 Version Information
-
-- **Version:** v2.7.1  
+- **Version:** v2.7.0  
 - **Release Date:** March 14, 2026  
 - **Last Updated:** 12:05 AM IST (Saturday)  
 - **Status:** ✅ Stable  
 
 ### 🛠️ Change Log
 
-- **Notification Bridge**: Fixed broken toasts for Clean Text, Slug, and Page URL actions by implementing a cross-world messaging bridge.
-- **Shortcut Cleanup**: Removed the invalid and conflicting `Ctrl+Shift+I` shortcut for image copying.
-- **Engine Optimization**: Refined feature modules for better reliability when injected into pages.
-
-### 🛠️ Change Log
+- **Omni-Engine v2.7.0 (Elite Release)**:
+  - **Notification Bridge**: Implemented a cross-world messaging bridge to ensure reliable toasts for Clean Text, Slug, and Page URL actions.
+  - **Premium UI**: Stadium-shaped rounding (100px), glassmorphism effects, and color-coded state icons.
+  - **Boundary Intelligence**: Integrated Behavioral Smart Boundary (v7.1) for autonomous container detection.
+  - **Shortcut Cleanup**: Removed conflicting `Ctrl+Shift+I` shortcut for a cleaner experience.
+  - **Exiver Labs Branding**: Completely removed all branding references from UI/Docs.
 
 - Implemented dynamic image detection for banners (`.single-wrapper > .image-wrapper > img`) and sliders (`.elementor-widget-container`)
 - Restored top slider image functionality using `event delegation` and `MutationObserver`

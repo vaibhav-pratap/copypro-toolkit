@@ -1,11 +1,10 @@
 // js/features/label.js - Button/Link label logic (Self-Contained)
 
-export function copyLabel() {
-  const showToast = (msg, type) => {
-    if (typeof window.showToast === 'function') window.showToast(msg, type);
-    else console.log(`[CopyPro] ${type}: ${msg}`);
-  };
+const showToast = (msg, type) => {
+  chrome.runtime.sendMessage({ action: 'show-toast', message: msg, type: type || 'success' });
+};
 
+export function copyLabel() {
   try {
     let labelText = '';
     const activeElement = window.lastRightClickedElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);

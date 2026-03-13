@@ -80,6 +80,13 @@ chrome.runtime.onMessage.addListener((request) => {
     initializeContextMenus();
   } else if (request.action === 'addToHistory') {
     addToHistory(request.data);
+  } else if (request.action === 'show-toast') {
+    // Relay to current tab
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, request);
+      }
+    });
   }
 });
 

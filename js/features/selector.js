@@ -1,11 +1,10 @@
 // js/features/selector.js - CSS Selector extraction logic (Self-Contained)
 
-export function copyCssSelector() {
-  const showToast = (msg, type) => {
-    if (typeof window.showToast === 'function') window.showToast(msg, type);
-    else console.log(`[CopyPro] ${type}: ${msg}`);
-  };
+const showToast = (msg, type) => {
+  chrome.runtime.sendMessage({ action: 'show-toast', message: msg, type: type || 'success' });
+};
 
+export function copyCssSelector() {
   const element = window.lastRightClickedElement || document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
   if (!element) {
     showToast("No element found", "error");
